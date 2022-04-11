@@ -6,21 +6,26 @@ import json
 import praw
 import logging
 import datetime
+import atexit
 from collections import OrderedDict
 from pprint import pprint
 
 # Logging in PRAW
 handler = logging.StreamHandler()
-handler.setLevel(logging.DEBUG)
+handler.setLevel(logging.INFO)
+logging.basicConfig(filename="Submissions.log", format='INFO %(asctime)s %(message)s', filemode='a')
 for logger_name in ("praw", "prawcore"):
     logger = logging.getLogger(logger_name)
-    logger.setLevel(logging.DEBUG)
+    logger.setLevel(logging.INFO)
     logger.addHandler(handler)
 
 # golobal variables
 submission_count = 0                # Will be used as index of submission_dict
 submission_dict = OrderedDict()     # To store the submissions in a dictionary
 submissions_per_file = 1000         # Number of submission per file
+
+
+        
 
 class MyReddit:
     def __init__(self, reddit):
@@ -60,6 +65,25 @@ class MyReddit:
         except praw.exceptions.PRAWException as e:
             logger.error(e)
 
+
+    def get_top_submission(self, subreddits=[], time_filter="all"):
+        """
+        input:
+            subreddit : list of subreddit in string format
+            time_filter: "all", "day", "hour", "month", "week", or "year"
+        """
+
+        """ 
+            Add '+' inbetween subreddit name 
+            reddit.subreddit("redditdev+learnpython+botwatch")
+        """
+        try:
+            subreddit = self.reddit.subreddit('+'.join(subreddits))
+            # Return top posts of the subreddits filtered by time
+            return subreddit.top(time_filter)
+        except praw.exceptions.PRAWException as e:
+            logger.error(e)
+
     def get_submission_stream(self, subreddits=[]):
         """
             Stream Subreddit Submission
@@ -82,35 +106,8 @@ class MyReddit:
             logger.info("Error in get_submission_stream().....")
             logger.error(e)
     
-    def process_submission_stream(self, submission):
-        """
-            Processes the incoming submission from stream and store it to a json file
-            Input : submission object
-        """
-        global submission_count, submission_dict, submissions_per_file
-        try:
-            """
-            If submission count is equal to 1000 save to json file and
-            reset the count and dictionary 
-            """
-            if submission_count >= submissions_per_file:
-                filename = self.get_file_name(type='st', extension='json')
-                if filename:
-                    filename = 'submissions/stream/' + filename
-                    with open(filename, 'w', encoding = 'utf-8') as file:
-                        json.dump(submission_dict, file, ensure_ascii=False, indent=4)
-                    submission_count = 0 # Reset count to zero
-                    submission_dict = OrderedDict()
-                    
-            submission_json = self.parse_submission(submission=submission)
-            logger.debug(json.loads(submission_json)["title"]) # Just for debug purpose remove it afterwads
-            submission_dict.update({submission_count: submission_json}) 
-            submission_count += 1
-        except Exception as e:
-            logger.info("Error in process_submission_stream()......")
-            logger.info(str(e))
 
-    def parse_submission(self, submission):
+    def parse_submission(self, submission=None):
         """
             submission : Submission object of PRAW
             Parse and returns the submission object into json format 
@@ -138,38 +135,57 @@ class MyReddit:
             
 
 
-    def save_submission_id(self, submission_id="", submission_id_list=[]):
+    def save_submission_id(self, submission_id="", submission_id_list=[], subreddit=""):
         """
+            Write the submission ids to a text file for comment extraction
             input : a submission id or list of submission ids
-            Write the submission ids to a file for comment extraction
         """
-        filename = self.get_file_name('sid', 'txt')
+        filename = get_file_name('sid', 'txt')
+        filename = 'submissions/non_stream/' + filename
+
         if submission_id:
             with open(filename, 'a') as file:
                 file.write(str(submission_id) + '\n')
         
         if submission_id_list:
-            with open(filename, 'a') as file:
-                for id in submission_id_list:
-                    file.write(str(id) + '\n')
+            if subreddit:
+                filename = get_file_name('sid', 'txt')
+                path = 'submissions/non_stream/'
+                full_filename = path + subreddit + "_" + filename
+                with open(full_filename, 'w') as file:
+                    for id in submission_id_list:
+                        file.write(str(id) + '\n')
+            else:
+                with open(filename, 'a') as file:
+                    for id in submission_id_list:
+                        file.write(str(id) + '\n')
                     
 
 
-    def save_submission_json(self, submission_dict):
+    def save_submission_json(self, submission_dict={}, subreddit=""):
         """
             Writes the submission dictionary into an json file
         """
         try:
-            filename = self.get_file_name(type='s', extension='json')
-            if filename:
+            if subreddit:
+                filename = get_file_name(type='s', extension='json')
+                filename = 'submissions/non_stream/' + subreddit + "_" + filename
+
                 with open(filename, 'w', encoding = 'utf-8') as file:
                     json.dump(submission_dict, file, ensure_ascii=False, indent=4)
+
+            else:
+                filename = get_file_name(type='s', extension='json')
+                filename = 'submissions/non_stream/' + filename
+                if filename:
+                    with open(filename, 'w', encoding = 'utf-8') as file:
+                        json.dump(submission_dict, file, ensure_ascii=False, indent=4)
 
         except Exception as e:
             logger.info("Error in save_submission_json().....")
             logger.info(e)
 
-    def write_to_file(self, submissions):
+    def write_to_file(self, submissions, subreddit=""):
         """
             Writes the submission into file.
             First store the submissions into a dictionary 
@@ -190,8 +206,8 @@ class MyReddit:
                     submission_count += 1
 
             if submission_dict: # if dictionary is not empty save it
-                self.save_submission_id(submission_id_list=submission_id_list)
-                self.save_submission_json(submission_dict=submission_dict)
+                self.save_submission_id(submission_id_list=submission_id_list, subreddit=subreddit)
+                self.save_submission_json(submission_dict=submission_dict, subreddit=subreddit)
 
         except Exception as e:
             logger.debug("Inside write_to_file() method.....")
@@ -231,32 +247,97 @@ class MyReddit:
             logger.info("Error in txt_file_to_list()......")
             logger.info(e)
 
+class MyRedditStream(MyReddit):
+    def __init__(self, reddit):
+        self.reddit = reddit
+        MyReddit.__init__(self, reddit)
+    
+    def get_submission_stream(self, subreddits=[]):
+        """
+            Stream Subreddit Submission
+            subreddits : list of subreddit
+        """
+        try:
+            """ 
+                Add '+' inbetween subreddit name 
+                reddit.subreddit("redditdev+learnpython+botwatch")
+            """
+            subreddit = self.reddit.subreddit('+'.join(subreddits))
+
+            for submission in subreddit.stream.submissions(skip_existing=True):
+                self.process_submission_stream(submission=submission)
+                # print(submission)
+        except Exception as e:
+            logger.info("Error in get_submission_stream().....")
+            logger.error(e)
+
+def get_file_name(type, extension):
+    """
+        Return a file name as current time
+        type:
+            s=submission, 
+            c=comment,
+            sid=submission_id, 
+            st=sunmission stream
+        extension: 
+            json or txt
+    """
+    try:
+        datetime1 = datetime.datetime.utcnow()
+        d1 = str(datetime1).split(".")[0].replace("-", "-").replace(":", "-").replace(" ", "_")
+        filename =str(d1)+"_"+type+"."+extension # 2022-03-14_20-03-02_s.json
+        return filename
+    except Exception as e:
+        logger.debug("Inside get_file_name method.....")
+        logger.debug(e)
+
+def exit_handler():
+    """
+        Before exiting save the comments
+    """
+    global submission_count, submission_dict
+    if submission_count >= 100:
+        filename = get_file_name(type='ct', extension='json')
+        if filename:
+            filename = 'submission/stream/' + filename
+            with open(filename, 'w', encoding = 'utf-8') as file:
+                json.dump(submission_dict, file, ensure_ascii=False, indent=4)
+            # comment_count = 0 # Reset count to zero
+            # comment_dict = OrderedDict()
+
 if __name__ == "__main__":
     # Reddit Credential
-    client_id="QmYcE5AJDFFR0_OeG__I-Q"
-    client_secret="3UjqFoW1yfpE_Tj9YXyx5Ri0U9NFEw" 
+    client_id="IlAaIMNtV8ClGY3cRhhpYw"
+    client_secret="ZITbTKXqn_kfhQcPmgm_iRi46YgIlg" 
     user_agent="crawler for reddit"
     
-    try:
-        # Reddit instance
-        reddit = praw.Reddit(
-            client_id=client_id,
-            client_secret=client_secret,
-            user_agent=user_agent,
-        )
+    
+    # Reddit instance
+    reddit = praw.Reddit(
+        client_id=client_id,
+        client_secret=client_secret,
+        user_agent=user_agent,
+    )
 
-        # MyReddit class object
-        rd = MyReddit(reddit)
+    # MyReddit class object
+    rd = MyReddit(reddit)
 
-        # submissions = rd.get_submission(subreddits=["all"],option="hot", limit=2)
-        # rd.write_to_file(submissions=submissions)
-        
-        subreddit_list = ["test"]
-        # subreddit_list = rd.txt_file_to_list("subreddits_list.txt")
-        print(subreddit_list)
-        rd.get_submission_stream(subreddits=subreddit_list) #streaming
+    subreddit_list = rd.txt_file_to_list("subreddits_list.txt")
 
-        # print(submissions)
-    except Exception as e:
-            logger.debug("Inside main() method.....")
-            logger.debug(e)
+    for subreddit in subreddit_list:
+        submissions = rd.get_submission(subreddits=[subreddit], option="hot", limit=None)
+        rd.write_to_file(submissions=submissions, subreddit=subreddit)
+
+
+    # # submissions = rd.get_submission(subreddits=subreddit_list,option="hot", limit=None)
+    # # rd.write_to_file(submissions=submissions)
+    
+    # # subreddit_list = ["test"]
+    # # subreddit_list = rd.txt_file_to_list("subreddits_list.txt")
+    # # print(subreddit_list)
+    # # rd.get_submission_stream(subreddits=subreddit_list) #streaming
+
+    # # print(submissions)
+
+    # atexit.register(exit_handler)
+    

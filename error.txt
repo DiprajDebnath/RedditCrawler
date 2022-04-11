@@ -1,0 +1,8 @@
+Inside parse_submission method.....
+Object of type PollData is not JSON serializable
+
+Params: {'limit': 1024, 'after': 't3_t790ry', 'raw_json': 1}
+Sleeping: 0.46 seconds prior to call
+Response: 200 (96507 bytes)
+Inside parse_submission method.....
+'NoneType' object has no attribute 'name'

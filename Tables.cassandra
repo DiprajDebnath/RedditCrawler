@@ -1,0 +1,129 @@
+CREATE TABLE comments (
+    author    text,
+    author_id    text,
+    author_flair_css_class  text,
+    author_flair_text   text,
+    banned_by   text,
+    body    text,
+    body_html   text,
+    created_utc   bigint,
+    distinguished   text,
+    edited    boolean,
+    gilded    int,
+    likes   boolean,
+    comment_id    text,
+    is_submitter    boolean,
+    link_id    text,
+    parent_id   text,
+    permalink   text,
+    replies    list<text>,
+    saved    boolean,
+    score    int,
+    stickied    boolean,
+    submission_id    text,
+    subreddit   text,
+    subreddit_id    text,
+    PRIMARY KEY((subreddit_id), author_id, parent_id, created_utc, comment_id)
+)WITH CLUSTERING ORDER BY(author_id ASC, parent_id ASC, created_utc DESC);
+
+CREATE TABLE comments2 (
+    author    text,
+    author_id    text,
+    body    text,
+    body_html   text,
+    created_utc   timestamp,
+    edited    boolean,
+    gilded    int,
+    likes   boolean,
+    comment_id    text,
+    is_submitter    boolean,
+    link_id    text,
+    parent_id   text,
+    permalink   text,
+    saved    boolean,
+    score    int,
+    stickied    boolean,
+    submission_id    text,
+    subreddit   text,
+    subreddit_id    text,
+    PRIMARY KEY((subreddit_id), author_id, parent_id, created_utc, comment_id)
+)WITH CLUSTERING ORDER BY(author_id ASC, parent_id ASC, created_utc DESC);
+
+
+CREATE TABLE redditor (
+    id text,
+    name text,
+    PRIMARY KEY(id, name)
+)
+
+CREATE TABLE submissions (
+    author_id   text,
+    author_name   text,
+    comments_by_id    list<text>,
+    created_utc   bigint,
+    distinguished   text,
+    edited  boolean,
+    submission_id   text,
+    is_original_content   boolean,
+    is_self    boolean,
+    link_flair_template_id    text,
+    link_flair_text   text,
+    locked    boolean,
+    num_comments    int,
+    over_18    boolean,
+    permalink   text,
+    saved    boolean,
+    score   int,
+    selftext    text,
+    spoiler    boolean,
+    stickied    boolean,
+    subreddit   text,
+    subreddit_id    text,
+    title   text,
+    upvote_ratio    int,
+    url   text,
+    PRIMARY KEY ((subreddit_id), author_id, created_utc, submission_id)
+)WITH CLUSTERING ORDER BY(author_id ASC, created_utc DESC);
+
+CREATE TABLE submissions2 (
+    author_id   text,
+    author_name   text,
+    created_utc   timestamp,
+    edited  boolean,
+    submission_id   text,
+    is_original_content   boolean,
+    is_self    boolean,
+    link_flair_text   text,
+    locked    boolean,
+    num_comments    int,
+    over_18    boolean,
+    permalink   text,
+    saved    boolean,
+    score   int,
+    selftext    text,
+    spoiler    boolean,
+    stickied    boolean,
+    subreddit   text,
+    subreddit_id    text,
+    title   text,
+    upvote_ratio    float,
+    url   text,
+    PRIMARY KEY ((subreddit_id), author_id, created_utc, submission_id)
+)WITH CLUSTERING ORDER BY(author_id ASC, created_utc DESC);
+
+
+CREATE TABLE subreddits (
+    author_id   text,
+    name    text,
+    subreddits    list<text>,
+    submission_ids   list<text>,
+    comment_ids    list<text>
+)
+
+CREATE TABLE subreddits (
+    subreddit_id   text,
+    subreddit_name text,
+    subreddit_type text,
+    subreddit_subscribers bigint,
+    PRIMARY KEY(subreddit_id, subreddit_name)
+)
